@@ -11941,21 +11941,42 @@ LAB_0005:
 	MOVE.L	OldCopper,EXT_000e	;7c822: 23f90007ca8800dff080
 	MOVE.W	#$8020,EXT_000f		; fix: was MOVE.B #$ff (= $FFFF: all DMA + BLTPRI)
 	MOVEA.L	EXT_0001,A6		;7c834: 2c7900000004
-	MOVEA.L	GfxBase,A1
-	JSR	-414(A6)		; fix: CloseLibrary, missing in the original
 	JSR	-138(A6)		;7c83a: 4eaeff76
+	MOVEA.L	GfxBase,A6		; fix: AGA, give the OS view back
+	MOVEA.L	OldView,A1
+	JSR	-222(A6)		; LoadView
+	JSR	-270(A6)		; WaitTOF
+	MOVE.L	38(A6),EXT_000e		; COP1LC = gb_copinit
+	MOVEA.L	A6,A1
+	MOVEA.L	EXT_0001,A6
+	JSR	-414(A6)		; fix: CloseLibrary, missing in the original
 	MOVEM.L	(A7)+,D0-D7/A0-A6	;7c83e: 4cdf7fff
 	CLR.L	D0			;7c842: 4280
 	RTS				;7c844: 4e75
 SysInit:
 	MOVEA.L	EXT_0001,A6		;7c846: 2c7900000004
-	JSR	-132(A6)		;7c84c: 4eaeff7c
 	LEA	GfxName,A1		;7c850: 43f90007ca8c
 	MOVEQ	#0,D0			; fix: version was whatever D0 held
 	JSR	-408(A6)		;7c856: 4eaefe68
 	MOVE.L	D0,GfxBase
 	MOVEA.L	D0,A6			;7c85a: 2c40
 	MOVE.L	38(A6),OldCopper	;7c85c: 23ee00260007ca88
+	; fix: on AGA (Workbench 3.x, CD32) graphics.library leaves FMODE=3
+	; and BPLCON3/BPLCON4 set for its own display and the picture came
+	; out garbled. Drop the OS view (done before Forbid: WaitTOF waits),
+	; then put the AGA-only registers to their OCS defaults. Harmless
+	; on OCS/ECS.
+	MOVE.L	34(A6),OldView		; gb_ActiView
+	SUBA.L	A1,A1
+	JSR	-222(A6)		; LoadView(NULL)
+	JSR	-270(A6)		; WaitTOF
+	JSR	-270(A6)		; WaitTOF
+	MOVE.W	#$0000,$DFF1FC		; FMODE
+	MOVE.W	#$0C00,$DFF106		; BPLCON3
+	MOVE.W	#$0011,$DFF10C		; BPLCON4
+	MOVEA.L	EXT_0001,A6
+	JSR	-132(A6)		;7c84c: 4eaeff7c
+	MOVEA.L	GfxBase,A6
 	MOVE.W	#$0020,EXT_000f		;7c864: sprite DMA off (was MOVE.B)
 	MOVE.L	#Copper,EXT_000e	;7c86c: 23fc0007ca9e00dff080
 	MOVE.W	#$8380,EXT_000f		; fix: was MOVE.L #$8380 (wrote $0000 to DMACON, $8380 to CLXCON)
@@ -12080,6 +12101,8 @@ LAB_001F:
 OldCopper:
 	DS.L	1			;7ca88
 GfxBase:
+	DS.L	1
+OldView:
 	DS.L	1
 GfxName:
 	;7ca8c

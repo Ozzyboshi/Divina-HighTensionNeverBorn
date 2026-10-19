@@ -131,10 +131,10 @@ All graphics, samples and the copper list must be in chip RAM. In the rebuild ev
 
 `Main` (`$7C800`):
 
-1. `SysInit`: `Forbid()`, `OpenLibrary("graphics.library")`, saves `gb_copinit` (offset 38) to restore it at the end, turns sprite DMA off, writes its own copper list to `COP1LC`.
+1. `SysInit`: `OpenLibrary("graphics.library")`, saves `gb_copinit` (offset 38) to restore it at the end, `Forbid()`, turns sprite DMA off, writes its own copper list to `COP1LC`. The rebuild also drops the OS view before `Forbid()` (see the AGA fix below).
 2. `IntInstall`: turns the audio filter off (`$BFE001` = `$02`), calls `mt_init`, saves the level 3 autovector at `$6C` and replaces it with `Level3Int`. It does not use `AddIntServer()`.
 3. Busy loop on the left mouse button (`BTST #6,$BFE001`). All the work happens in the interrupt.
-4. `IntRemove`: restores the vector, stops the audio (`mt_end`), turns the filter back on. Then it restores the system copper list, writes `DMACON`, calls `Permit()` and returns 0 to the CLI.
+4. `IntRemove`: restores the vector, stops the audio (`mt_end`), turns the filter back on. Then it restores the system copper list, writes `DMACON`, calls `Permit()` and returns 0 to the CLI (the rebuild also loads the saved OS view back).
 
 ### The level 3 interrupt
 
@@ -284,6 +284,7 @@ The original has several bugs. They are fixed in the rebuild and marked `fix:` i
 | `MOVE.B #$FF,$DFF096` on exit | a byte write to a custom register is seen as `$FFFF`: it turns on every DMA channel and `BLTPRI` ("blitter nasty") | `MOVE.W #$8020` (only turns sprite DMA back on) |
 | `OpenLibrary` with `D0` not set | the version asked for is whatever `D0` held at start | `MOVEQ #0,D0` |
 | `graphics.library` never closed | the open count stays one too high | `CloseLibrary` on exit |
+| `FMODE`, `BPLCON3`, `BPLCON4` never set (they did not exist in 1991) | on AGA machines (started from Workbench 3.x, or on a CD32 booted in AGA mode) `graphics.library` leaves `FMODE`=3, so bitplanes are fetched 64 bits at a time and the tombstone picture comes out garbled | `SysInit` saves `gb_ActiView`, calls `LoadView(NULL)` and `WaitTOF()` twice, then writes `FMODE`=`$0000`, `BPLCON3`=`$0C00`, `BPLCON4`=`$0011` (the OCS defaults; harmless on OCS/ECS). On exit the saved view is loaded back |
 
 These are left as in the original: the 4-byte sample offset in `mt_init` (inaudible with this module), the 500-iteration DMA wait, and the busy wait for line `$20` inside the interrupt.
 
